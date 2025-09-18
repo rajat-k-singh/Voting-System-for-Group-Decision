@@ -1,0 +1,15 @@
+[package]
+name = "Votingsystemforgroupdecision"
+version = "1.0.0"
+authors = []
+
+[addresses]
+MyModule = "e6136c3c5bd1fb777dd96c06128894cbc36c8a9a3c3041981b25d6ba9069657a"
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
