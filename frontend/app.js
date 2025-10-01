@@ -1,6 +1,7 @@
 // ---- CONFIG: set these to your deployed details ----
-const CONTRACT_ADDRESS = "0xYOUR_CONTRACT_ADDRESS";   // paste your real address
-const MODULE_NAME = "voting";                          // your module name
+const CONTRACT_ADDRESS = "0xYOUR_REAL_DEPLOYED_ADDRESS";
+const MODULE_NAME = "voting";
+
 
 // ---- Basic state ----
 let wallet = null;
