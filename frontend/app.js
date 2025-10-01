@@ -1,6 +1,8 @@
+
 // ---- CONFIG: set these to your deployed details ----
-const CONTRACT_ADDRESS = "0xYOUR_REAL_DEPLOYED_ADDRESS";
+const CONTRACT_ADDRESS = "0x8a2f476e0b2c8b3b4";
 const MODULE_NAME = "voting";
+
 
 
 // ---- Basic state ----
