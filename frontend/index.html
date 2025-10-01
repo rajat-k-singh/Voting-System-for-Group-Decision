@@ -4,107 +4,184 @@
   <meta charset="UTF-8">
   <title>Aptos Voting DApp</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    button {
-      margin: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #status {
-      margin-top: 20px;
-      font-weight: bold;
-    }
-    #tx {
-      margin-top: 10px;
-      color: blue;
-    }
+    body { font-family: Arial; text-align: center; margin-top: 30px; }
+    button { margin: 5px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
+    input { padding: 6px; font-size: 14px; width: 250px; }
+    table { margin: 20px auto; border-collapse: collapse; width: 80%; }
+    table, th, td { border: 1px solid #ccc; }
+    th, td { padding: 8px; text-align: center; }
+    .badge { padding: 3px 6px; background: #ddd; border-radius: 4px; }
+    #tx a { color: blue; text-decoration: underline; }
   </style>
 </head>
 <body>
   <h2>🗳️ Aptos Voting DApp (Devnet)</h2>
 
-  <button id="connectBtn">🔗 Connect Wallet</button>
-  <p id="status">Not connected</p>
+  <button id="connectBtn">Connect Wallet</button>
+  <p id="walletStatus">Not connected</p>
 
-  <div id="actions" style="display: none;">
-    <h3>Cast Your Vote</h3>
-    <button onclick="voteYes()">✅ Vote YES</button>
-    <button onclick="voteNo()">❌ Vote NO</button>
-    <p id="tx"></p>
-  </div>
+  <h3>Create a Poll</h3>
+  <form id="createPollForm">
+    <input type="text" id="question" placeholder="Enter poll question" required>
+    <button type="submit">Create Poll</button>
+  </form>
+  <p id="createStatus"></p>
 
-  <script type="module">
-    import { AptosClient } from "https://cdn.jsdelivr.net/npm/aptos@1.20.0/dist/index.min.js";
+  <h3>Polls</h3>
+  <button id="refreshBtn">Refresh Polls</button>
+  <p id="loadStatus"></p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Question</th>
+        <th>Yes</th>
+        <th>No</th>
+        <th>Vote</th>
+      </tr>
+    </thead>
+    <tbody id="pollsBody"></tbody>
+  </table>
+  <p id="tx"></p>
 
-    const connectBtn = document.getElementById("connectBtn");
-    const statusEl = document.getElementById("status");
-    const actions = document.getElementById("actions");
-    const txEl = document.getElementById("tx");
+<script type="module">
+  // ---------------- CONFIG ----------------
+  const CONTRACT_ADDRESS = "0x8a2f476e0b2c8b3b4"; // your deployed account
+  const MODULE_NAME = "voting";                  // your module name
 
-    const NODE_URL = "https://fullnode.devnet.aptoslabs.com/v1";
-    const client = new AptosClient(NODE_URL);
+  let wallet = null;
+  let account = null;
 
-    let account = null;
+  const els = {
+    connectBtn: document.getElementById("connectBtn"),
+    walletStatus: document.getElementById("walletStatus"),
+    createPollForm: document.getElementById("createPollForm"),
+    createStatus: document.getElementById("createStatus"),
+    pollsBody: document.getElementById("pollsBody"),
+    loadStatus: document.getElementById("loadStatus"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    txEl: document.getElementById("tx")
+  };
 
-    // 🔗 Connect Wallet
-    async function connectWallet() {
-      if (!window.aptos) {
-        alert("⚠️ Petra wallet not found! Install from https://petra.app/");
-        return;
-      }
-      try {
-        account = await window.aptos.connect();
-        statusEl.innerText = "✅ Connected: " + account.address;
-        actions.style.display = "block";
-      } catch (err) {
-        console.error(err);
-        statusEl.innerText = "❌ Connection failed";
-      }
+  // ---------------- UTILS ----------------
+  function short(addr) { return addr?.slice(0,6) + "…" + addr?.slice(-4); }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+  // ---------------- WALLET CONNECT ----------------
+  async function connect() {
+    if (!window.aptos) { alert("No Aptos wallet found. Install Petra extension."); return; }
+    try {
+      const res = await window.aptos.connect();
+      wallet = window.aptos;
+      account = res.address;
+      els.walletStatus.textContent = `Connected: ${short(account)}`;
+      els.connectBtn.textContent = "Connected";
+      els.connectBtn.disabled = true;
+    } catch (e) { console.error(e); alert(e.message || "Failed to connect wallet"); }
+  }
+  els.connectBtn.addEventListener("click", connect);
+
+  // ---------------- CONTRACT CALLS ----------------
+  async function createPoll(question) {
+    if (!wallet) throw new Error("Connect wallet first");
+    const payload = {
+      type: "entry_function_payload",
+      function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::create_poll`,
+      type_arguments: [],
+      arguments: [question],
+    };
+    return wallet.signAndSubmitTransaction({ payload });
+  }
+
+  async function vote(pollId, choiceBool) {
+    if (!wallet) throw new Error("Connect wallet first");
+    const payload = {
+      type: "entry_function_payload",
+      function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::vote`,
+      type_arguments: [],
+      arguments: [String(pollId), !!choiceBool],
+    };
+    return wallet.signAndSubmitTransaction({ payload });
+  }
+
+  // ---------------- FETCH POLLS ----------------
+  async function fetchPolls() {
+    try {
+      els.loadStatus.textContent = "Loading polls…";
+      let nodeUrl = "https://fullnode.devnet.aptoslabs.com/v1";
+
+      const body = {
+        function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::get_polls`,
+        type_arguments: [],
+        arguments: [],
+      };
+
+      const res = await fetch(`${nodeUrl}/view`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("View call failed");
+
+      const data = await res.json();
+      const [ids = [], questions = [], yeses = [], nos = []] = data || [];
+      const polls = ids.map((id,i)=>({ id, question: questions[i], yes: yeses[i], no: nos[i] }));
+      renderPolls(polls);
+      els.loadStatus.textContent = polls.length ? "" : "No polls yet.";
+    } catch(e) {
+      console.warn(e);
+      renderPolls([]);
+      els.loadStatus.textContent = "Could not load polls (ensure get_polls view exists).";
     }
+  }
 
-    connectBtn.addEventListener("click", connectWallet);
+  function renderPolls(polls) {
+    els.pollsBody.innerHTML = "";
+    polls.forEach(p=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${p.id ?? "-"}</td>
+        <td>${escapeHtml(p.question ?? "")}</td>
+        <td><span class="badge">${p.yes ?? 0}</span></td>
+        <td><span class="badge">${p.no ?? 0}</span></td>
+        <td>
+          <button onclick="votePoll(${p.id}, true)">Yes</button>
+          <button onclick="votePoll(${p.id}, false)">No</button>
+        </td>
+      `;
+      els.pollsBody.appendChild(tr);
+    });
+  }
 
-    // 🟢 Vote YES
-    async function voteYes() {
-      await sendTransaction("vote_yes", [1]); // pollId = 1
-    }
+  // ---------------- UI EVENTS ----------------
+  els.createPollForm.addEventListener("submit", async e=>{
+    e.preventDefault();
+    const question = (document.getElementById("question").value||"").trim();
+    if (!question) return;
+    els.createStatus.textContent = "Submitting…";
+    try {
+      const tx = await createPoll(question);
+      els.createStatus.innerHTML = `Transaction: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
+      document.getElementById("question").value = "";
+      fetchPolls();
+    } catch(err) { console.error(err); els.createStatus.textContent = "Failed: "+(err.message||"error"); }
+  });
 
-    // 🔴 Vote NO
-    async function voteNo() {
-      await sendTransaction("vote_no", [1]); // pollId = 1
-    }
+  async function votePoll(id, choice) {
+    try {
+      const tx = await vote(id, choice);
+      els.txEl.innerHTML = `Vote submitted: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
+      fetchPolls();
+    } catch(err) { console.error(err); els.txEl.textContent = "Vote failed: "+(err.message||"error"); }
+  }
 
-    // 📤 Generic transaction sender
-    async function sendTransaction(fn, args) {
-      try {
-        // TODO: replace with YOUR deployed module address + name
-        const moduleAddress = "0xYourModuleAddressHere"; 
-        const payload = {
-          type: "entry_function_payload",
-          function: `${moduleAddress}::voting_system::${fn}`,
-          type_arguments: [],
-          arguments: args,
-        };
+  els.refreshBtn.addEventListener("click", fetchPolls);
 
-        const tx = await window.aptos.signAndSubmitTransaction(payload);
-        await client.waitForTransaction(tx.hash);
+  // ---------------- AUTO LOAD ----------------
+  fetchPolls();
 
-        txEl.innerHTML = `✅ Tx Submitted: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
-      } catch (err) {
-        console.error("Transaction failed:", err);
-        txEl.innerText = "❌ Transaction failed (check console)";
-      }
-    }
-
-    // Expose functions globally
-    window.voteYes = voteYes;
-    window.voteNo = voteNo;
-  </script>
+  // expose votePoll globally
+  window.votePoll = votePoll;
+</script>
 </body>
 </html>
-
