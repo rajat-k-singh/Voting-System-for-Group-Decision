@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Group Voting – Minimal UI</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <h1>🗳️ Group Voting</h1>
+    <button id="connectBtn" class="btn">Connect Wallet</button>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Create a Poll</h2>
+      <form id="createPollForm">
+        <label for="question">Question</label>
+        <input id="question" name="question" placeholder="e.g., Enable feature X?" required />
+        <button type="submit" class="btn primary">Create</button>
+      </form>
+      <p id="createStatus" class="muted"></p>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>All Polls</h2>
+        <button id="refreshBtn" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table id="pollsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Question</th>
+              <th>Yes</th>
+              <th>No</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="pollsBody"></tbody>
+        </table>
+      </div>
+      <p id="loadStatus" class="muted"></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Status: <strong id="walletStatus">Disconnected</strong></span>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
