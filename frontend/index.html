@@ -7,7 +7,7 @@
     body { font-family: Arial; text-align: center; margin-top: 30px; }
     button { margin: 5px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
     input { padding: 6px; font-size: 14px; width: 250px; }
-    table { margin: 20px auto; border-collapse: collapse; width: 80%; }
+    table { margin: 20px auto; border-collapse: collapse; width: 90%; }
     table, th, td { border: 1px solid #ccc; }
     th, td { padding: 8px; text-align: center; }
     .badge { padding: 3px 6px; background: #ddd; border-radius: 4px; }
@@ -37,6 +37,9 @@
         <th>Question</th>
         <th>Yes</th>
         <th>No</th>
+        <th>Total</th>
+        <th>Yes %</th>
+        <th>No %</th>
         <th>Vote</th>
       </tr>
     </thead>
@@ -66,6 +69,10 @@
   // ---------------- UTILS ----------------
   function short(addr) { return addr?.slice(0,6) + "…" + addr?.slice(-4); }
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+  function calcPercent(value, total) {
+    return total === 0 ? 0 : ((value / total) * 100).toFixed(1);
+  }
 
   // ---------------- WALLET CONNECT ----------------
   async function connect() {
@@ -125,7 +132,15 @@
 
       const data = await res.json();
       const [ids = [], questions = [], yeses = [], nos = []] = data || [];
-      const polls = ids.map((id,i)=>({ id, question: questions[i], yes: yeses[i], no: nos[i] }));
+      const polls = ids.map((id,i)=>({
+        id,
+        question: questions[i],
+        yes: yeses[i],
+        no: nos[i],
+        total: (yeses[i]||0) + (nos[i]||0),
+        yesPercent: calcPercent(yeses[i]||0, (yeses[i]||0)+(nos[i]||0)),
+        noPercent: calcPercent(nos[i]||0, (yeses[i]||0)+(nos[i]||0))
+      }));
       renderPolls(polls);
       els.loadStatus.textContent = polls.length ? "" : "No polls yet.";
     } catch(e) {
@@ -144,6 +159,9 @@
         <td>${escapeHtml(p.question ?? "")}</td>
         <td><span class="badge">${p.yes ?? 0}</span></td>
         <td><span class="badge">${p.no ?? 0}</span></td>
+        <td>${p.total}</td>
+        <td>${p.yesPercent}%</td>
+        <td>${p.noPercent}%</td>
         <td>
           <button onclick="votePoll(${p.id}, true)">Yes</button>
           <button onclick="votePoll(${p.id}, false)">No</button>
