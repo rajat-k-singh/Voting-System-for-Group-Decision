@@ -1,55 +1,110 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Group Voting – Minimal UI</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="UTF-8">
+  <title>Aptos Voting DApp</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    #tx {
+      margin-top: 10px;
+      color: blue;
+    }
+  </style>
 </head>
 <body>
-  <header class="nav">
-    <h1>🗳️ Group Voting</h1>
-    <button id="connectBtn" class="btn">Connect Wallet</button>
-  </header>
+  <h2>🗳️ Aptos Voting DApp (Devnet)</h2>
 
-  <main class="container">
-    <section class="card">
-      <h2>Create a Poll</h2>
-      <form id="createPollForm">
-        <label for="question">Question</label>
-        <input id="question" name="question" placeholder="e.g., Enable feature X?" required />
-        <button type="submit" class="btn primary">Create</button>
-      </form>
-      <p id="createStatus" class="muted"></p>
-    </section>
+  <button id="connectBtn">🔗 Connect Wallet</button>
+  <p id="status">Not connected</p>
 
-    <section class="card">
-      <div class="row">
-        <h2>All Polls</h2>
-        <button id="refreshBtn" class="btn">Refresh</button>
-      </div>
-      <div class="table-wrap">
-        <table id="pollsTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Question</th>
-              <th>Yes</th>
-              <th>No</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="pollsBody"></tbody>
-        </table>
-      </div>
-      <p id="loadStatus" class="muted"></p>
-    </section>
-  </main>
+  <div id="actions" style="display: none;">
+    <h3>Cast Your Vote</h3>
+    <button onclick="voteYes()">✅ Vote YES</button>
+    <button onclick="voteNo()">❌ Vote NO</button>
+    <p id="tx"></p>
+  </div>
 
-  <footer class="footer">
-    <span>Status: <strong id="walletStatus">Disconnected</strong></span>
-  </footer>
+  <script type="module">
+    import { AptosClient } from "https://cdn.jsdelivr.net/npm/aptos@1.20.0/dist/index.min.js";
 
-  <script src="./app.js"></script>
+    const connectBtn = document.getElementById("connectBtn");
+    const statusEl = document.getElementById("status");
+    const actions = document.getElementById("actions");
+    const txEl = document.getElementById("tx");
+
+    const NODE_URL = "https://fullnode.devnet.aptoslabs.com/v1";
+    const client = new AptosClient(NODE_URL);
+
+    let account = null;
+
+    // 🔗 Connect Wallet
+    async function connectWallet() {
+      if (!window.aptos) {
+        alert("⚠️ Petra wallet not found! Install from https://petra.app/");
+        return;
+      }
+      try {
+        account = await window.aptos.connect();
+        statusEl.innerText = "✅ Connected: " + account.address;
+        actions.style.display = "block";
+      } catch (err) {
+        console.error(err);
+        statusEl.innerText = "❌ Connection failed";
+      }
+    }
+
+    connectBtn.addEventListener("click", connectWallet);
+
+    // 🟢 Vote YES
+    async function voteYes() {
+      await sendTransaction("vote_yes", [1]); // pollId = 1
+    }
+
+    // 🔴 Vote NO
+    async function voteNo() {
+      await sendTransaction("vote_no", [1]); // pollId = 1
+    }
+
+    // 📤 Generic transaction sender
+    async function sendTransaction(fn, args) {
+      try {
+        // TODO: replace with YOUR deployed module address + name
+        const moduleAddress = "0xYourModuleAddressHere"; 
+        const payload = {
+          type: "entry_function_payload",
+          function: `${moduleAddress}::voting_system::${fn}`,
+          type_arguments: [],
+          arguments: args,
+        };
+
+        const tx = await window.aptos.signAndSubmitTransaction(payload);
+        await client.waitForTransaction(tx.hash);
+
+        txEl.innerHTML = `✅ Tx Submitted: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
+      } catch (err) {
+        console.error("Transaction failed:", err);
+        txEl.innerText = "❌ Transaction failed (check console)";
+      }
+    }
+
+    // Expose functions globally
+    window.voteYes = voteYes;
+    window.voteNo = voteNo;
+  </script>
 </body>
 </html>
+
