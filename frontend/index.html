@@ -1,205 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Aptos Voting DApp</title>
-  <style>
-    body { font-family: Arial; text-align: center; margin-top: 30px; }
-    button { margin: 5px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
-    input { padding: 6px; font-size: 14px; width: 250px; }
-    table { margin: 20px auto; border-collapse: collapse; width: 90%; }
-    table, th, td { border: 1px solid #ccc; }
-    th, td { padding: 8px; text-align: center; }
-    .badge { padding: 3px 6px; background: #ddd; border-radius: 4px; }
-    #tx a { color: blue; text-decoration: underline; }
-  </style>
+<meta charset="UTF-8">
+<title>Aptos Voting DApp</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; font-family: 'Inter', sans-serif; }
+  body.light { background: #f5f6fa; color: #333; }
+  body.dark { background: #121212; color: #eee; }
+  .container { max-width: 900px; margin: auto; padding: 30px; }
+  h2,h3 { margin-bottom: 15px; }
+  button { cursor: pointer; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; transition: 0.2s; }
+  button:hover { opacity: 0.9; }
+  input[type=text] { padding: 8px 12px; font-size: 14px; border-radius: 6px; border: 1px solid #ccc; width: 70%; margin-right: 8px; background: inherit; color: inherit; }
+  #connectBtn { background: #1abc9c; color: #fff; }
+  #createPollForm button { background: #3498db; color: #fff; }
+  #refreshBtn { background: #9b59b6; color: #fff; margin-bottom: 20px; }
+  #darkModeToggle { background: #34495e; color: #fff; float: right; margin-top: -50px; }
+  .poll-card { background: #fff; padding: 20px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: 0.3s; }
+  body.dark .poll-card { background: #1e1e1e; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .poll-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .poll-question { font-weight: 600; font-size: 16px; }
+  .vote-bar { height: 20px; border-radius: 6px; background: #eee; margin-top: 8px; display: flex; overflow: hidden; }
+  body.dark .vote-bar { background: #333; }
+  .vote-yes, .vote-no {
+    text-align: right; padding-right: 6px; color: #fff; font-weight: 600;
+    transition: width 0.8s ease; /* Animate width */
+  }
+  .vote-yes { background: #2ecc71; }
+  .vote-no { background: #e74c3c; }
+  .vote-buttons button { margin-right: 8px; background: #2980b9; color: #fff; }
+  .vote-buttons button.no { background: #c0392b; }
+  .status { margin-top: 10px; font-size: 14px; color: #555; }
+  body.dark .status { color: #bbb; }
+  a { color: #3498db; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
 </head>
-<body>
+<body class="light">
+<div class="container">
   <h2>🗳️ Aptos Voting DApp (Devnet)</h2>
+  <button id="darkModeToggle">Toggle Dark Mode</button>
 
   <button id="connectBtn">Connect Wallet</button>
-  <p id="walletStatus">Not connected</p>
+  <p id="walletStatus" class="status">Not connected</p>
 
   <h3>Create a Poll</h3>
   <form id="createPollForm">
     <input type="text" id="question" placeholder="Enter poll question" required>
     <button type="submit">Create Poll</button>
   </form>
-  <p id="createStatus"></p>
+  <p id="createStatus" class="status"></p>
 
   <h3>Polls</h3>
   <button id="refreshBtn">Refresh Polls</button>
-  <p id="loadStatus"></p>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Question</th>
-        <th>Yes</th>
-        <th>No</th>
-        <th>Total</th>
-        <th>Yes %</th>
-        <th>No %</th>
-        <th>Vote</th>
-      </tr>
-    </thead>
-    <tbody id="pollsBody"></tbody>
-  </table>
-  <p id="tx"></p>
+  <p id="loadStatus" class="status"></p>
+  <div id="pollsContainer"></div>
+  <p id="tx" class="status"></p>
+</div>
 
 <script type="module">
-  // ---------------- CONFIG ----------------
-  const CONTRACT_ADDRESS = "0x8a2f476e0b2c8b3b4"; // your deployed account
-  const MODULE_NAME = "voting";                  // your module name
+  const CONTRACT_ADDRESS = "0x8a2f476e0b2c8b3b4";
+  const MODULE_NAME = "voting";
 
-  let wallet = null;
-  let account = null;
-
-  const els = {
+  let wallet=null, account=null;
+  const els={
     connectBtn: document.getElementById("connectBtn"),
     walletStatus: document.getElementById("walletStatus"),
     createPollForm: document.getElementById("createPollForm"),
     createStatus: document.getElementById("createStatus"),
-    pollsBody: document.getElementById("pollsBody"),
+    pollsContainer: document.getElementById("pollsContainer"),
     loadStatus: document.getElementById("loadStatus"),
     refreshBtn: document.getElementById("refreshBtn"),
-    txEl: document.getElementById("tx")
+    txEl: document.getElementById("tx"),
+    darkModeToggle: document.getElementById("darkModeToggle")
   };
 
-  // ---------------- UTILS ----------------
-  function short(addr) { return addr?.slice(0,6) + "…" + addr?.slice(-4); }
-  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+  function short(addr){ return addr?.slice(0,6)+"…"+addr?.slice(-4); }
+  function calcPercent(value,total){ return total===0?0:((value/total)*100).toFixed(1); }
 
-  function calcPercent(value, total) {
-    return total === 0 ? 0 : ((value / total) * 100).toFixed(1);
+  // Dark mode toggle
+  els.darkModeToggle.addEventListener("click", ()=>{
+    document.body.classList.toggle("dark");
+    document.body.classList.toggle("light");
+  });
+
+  async function connect(){
+    if(!window.aptos){ alert("No Aptos wallet found. Install Petra."); return; }
+    try{
+      const res=await window.aptos.connect();
+      wallet=window.aptos; account=res.address;
+      els.walletStatus.textContent=`Connected: ${short(account)}`;
+      els.connectBtn.textContent="Connected"; els.connectBtn.disabled=true;
+    }catch(e){ console.error(e); alert(e.message||"Failed to connect wallet"); }
+  }
+  els.connectBtn.addEventListener("click",connect);
+
+  async function createPoll(question){
+    if(!wallet) throw new Error("Connect wallet first");
+    const payload={type:"entry_function_payload",function:`${CONTRACT_ADDRESS}::${MODULE_NAME}::create_poll`,type_arguments:[],arguments:[question]};
+    return wallet.signAndSubmitTransaction({payload});
   }
 
-  // ---------------- WALLET CONNECT ----------------
-  async function connect() {
-    if (!window.aptos) { alert("No Aptos wallet found. Install Petra extension."); return; }
-    try {
-      const res = await window.aptos.connect();
-      wallet = window.aptos;
-      account = res.address;
-      els.walletStatus.textContent = `Connected: ${short(account)}`;
-      els.connectBtn.textContent = "Connected";
-      els.connectBtn.disabled = true;
-    } catch (e) { console.error(e); alert(e.message || "Failed to connect wallet"); }
-  }
-  els.connectBtn.addEventListener("click", connect);
-
-  // ---------------- CONTRACT CALLS ----------------
-  async function createPoll(question) {
-    if (!wallet) throw new Error("Connect wallet first");
-    const payload = {
-      type: "entry_function_payload",
-      function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::create_poll`,
-      type_arguments: [],
-      arguments: [question],
-    };
-    return wallet.signAndSubmitTransaction({ payload });
+  async function vote(pollId,choiceBool){
+    if(!wallet) throw new Error("Connect wallet first");
+    const payload={type:"entry_function_payload",function:`${CONTRACT_ADDRESS}::${MODULE_NAME}::vote`,type_arguments:[],arguments:[String(pollId),!!choiceBool]};
+    return wallet.signAndSubmitTransaction({payload});
   }
 
-  async function vote(pollId, choiceBool) {
-    if (!wallet) throw new Error("Connect wallet first");
-    const payload = {
-      type: "entry_function_payload",
-      function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::vote`,
-      type_arguments: [],
-      arguments: [String(pollId), !!choiceBool],
-    };
-    return wallet.signAndSubmitTransaction({ payload });
-  }
-
-  // ---------------- FETCH POLLS ----------------
-  async function fetchPolls() {
-    try {
-      els.loadStatus.textContent = "Loading polls…";
-      let nodeUrl = "https://fullnode.devnet.aptoslabs.com/v1";
-
-      const body = {
-        function: `${CONTRACT_ADDRESS}::${MODULE_NAME}::get_polls`,
-        type_arguments: [],
-        arguments: [],
-      };
-
-      const res = await fetch(`${nodeUrl}/view`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("View call failed");
-
-      const data = await res.json();
-      const [ids = [], questions = [], yeses = [], nos = []] = data || [];
-      const polls = ids.map((id,i)=>({
-        id,
-        question: questions[i],
-        yes: yeses[i],
-        no: nos[i],
-        total: (yeses[i]||0) + (nos[i]||0),
-        yesPercent: calcPercent(yeses[i]||0, (yeses[i]||0)+(nos[i]||0)),
-        noPercent: calcPercent(nos[i]||0, (yeses[i]||0)+(nos[i]||0))
+  async function fetchPolls(){
+    try{
+      els.loadStatus.textContent="Loading polls…";
+      let nodeUrl="https://fullnode.devnet.aptoslabs.com/v1";
+      const body={function:`${CONTRACT_ADDRESS}::${MODULE_NAME}::get_polls`,type_arguments:[],arguments:[]};
+      const res=await fetch(`${nodeUrl}/view`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(!res.ok) throw new Error("View call failed");
+      const data=await res.json();
+      const [ids=[],questions=[],yeses=[],nos[]]=data||[];
+      const polls=ids.map((id,i)=>({
+        id,question:questions[i],
+        yes:yeses[i]||0,no:nos[i]||0,
+        total:(yeses[i]||0)+(nos[i]||0),
+        yesPercent:calcPercent(yeses[i]||0,(yeses[i]||0)+(nos[i]||0)),
+        noPercent:calcPercent(nos[i]||0,(yeses[i]||0)+(nos[i]||0))
       }));
       renderPolls(polls);
-      els.loadStatus.textContent = polls.length ? "" : "No polls yet.";
-    } catch(e) {
-      console.warn(e);
-      renderPolls([]);
-      els.loadStatus.textContent = "Could not load polls (ensure get_polls view exists).";
-    }
+      els.loadStatus.textContent=polls.length?"":"No polls yet.";
+    }catch(e){ console.warn(e); els.pollsContainer.innerHTML=""; els.loadStatus.textContent="Could not load polls."; }
   }
 
-  function renderPolls(polls) {
-    els.pollsBody.innerHTML = "";
+  function renderPolls(polls){
+    els.pollsContainer.innerHTML="";
     polls.forEach(p=>{
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${p.id ?? "-"}</td>
-        <td>${escapeHtml(p.question ?? "")}</td>
-        <td><span class="badge">${p.yes ?? 0}</span></td>
-        <td><span class="badge">${p.no ?? 0}</span></td>
-        <td>${p.total}</td>
-        <td>${p.yesPercent}%</td>
-        <td>${p.noPercent}%</td>
-        <td>
-          <button onclick="votePoll(${p.id}, true)">Yes</button>
-          <button onclick="votePoll(${p.id}, false)">No</button>
-        </td>
+      const card=document.createElement("div"); card.className="poll-card";
+      card.innerHTML=`
+        <div class="poll-header">
+          <div class="poll-question">#${p.id}: ${p.question}</div>
+          <div>Total Votes: ${p.total}</div>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-yes" style="width:0">${p.yesPercent>0?p.yesPercent+"%":""}</div>
+          <div class="vote-no" style="width:0">${p.noPercent>0?p.noPercent+"%":""}</div>
+        </div>
+        <div class="vote-buttons" style="margin-top:10px;">
+          <button onclick="votePoll(${p.id},true)">Yes</button>
+          <button class="no" onclick="votePoll(${p.id},false)">No</button>
+        </div>
       `;
-      els.pollsBody.appendChild(tr);
+      els.pollsContainer.appendChild(card);
+
+      // Animate vote bars after a short delay
+      setTimeout(()=>{
+        const yesBar = card.querySelector(".vote-yes");
+        const noBar = card.querySelector(".vote-no");
+        yesBar.style.width = p.yesPercent+"%";
+        noBar.style.width = p.noPercent+"%";
+      },50);
     });
   }
 
-  // ---------------- UI EVENTS ----------------
   els.createPollForm.addEventListener("submit", async e=>{
     e.preventDefault();
-    const question = (document.getElementById("question").value||"").trim();
-    if (!question) return;
-    els.createStatus.textContent = "Submitting…";
-    try {
-      const tx = await createPoll(question);
-      els.createStatus.innerHTML = `Transaction: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
-      document.getElementById("question").value = "";
+    const question=document.getElementById("question").value.trim();
+    if(!question) return;
+    els.createStatus.textContent="Submitting…";
+    try{
+      const tx=await createPoll(question);
+      els.createStatus.innerHTML=`Transaction: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
+      document.getElementById("question").value="";
       fetchPolls();
-    } catch(err) { console.error(err); els.createStatus.textContent = "Failed: "+(err.message||"error"); }
+    }catch(err){ console.error(err); els.createStatus.textContent="Failed: "+(err.message||"error"); }
   });
 
-  async function votePoll(id, choice) {
-    try {
-      const tx = await vote(id, choice);
-      els.txEl.innerHTML = `Vote submitted: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
+  async function votePoll(id,choice){
+    try{
+      const tx=await vote(id,choice);
+      els.txEl.innerHTML=`Vote submitted: <a href="https://explorer.aptoslabs.com/txn/${tx.hash}?network=devnet" target="_blank">${tx.hash}</a>`;
       fetchPolls();
-    } catch(err) { console.error(err); els.txEl.textContent = "Vote failed: "+(err.message||"error"); }
+    }catch(err){ console.error(err); els.txEl.textContent="Vote failed: "+(err.message||"error"); }
   }
 
-  els.refreshBtn.addEventListener("click", fetchPolls);
-
-  // ---------------- AUTO LOAD ----------------
+  els.refreshBtn.addEventListener("click",fetchPolls);
   fetchPolls();
-
-  // expose votePoll globally
-  window.votePoll = votePoll;
+  window.votePoll=votePoll;
 </script>
 </body>
 </html>
